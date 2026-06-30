@@ -8,5 +8,13 @@
   "request_host": "127.0.0.1",
   "request_port": "8090",
   "request_path": "/status",
+  "use_raw_request": false,
+  "raw_request": "",
+  "request_method": "GET",
+  "request_headers": {
+    "Accept": "*/*",
+    "User-Agent": "EMMProxy-TestClient/1.0"
+  },
+  "request_body": "",
   "disable_jtl": true
 }

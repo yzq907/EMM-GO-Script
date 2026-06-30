@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -52,6 +53,12 @@ type Config struct {
 	RequestHost string `json:"request_host"`
 	RequestPort string `json:"request_port"`
 	RequestPath string `json:"request_path"`
+	// HTTP请求配置
+	UseRawRequest  bool              `json:"use_raw_request"`
+	RawRequest     string            `json:"raw_request"`
+	RequestMethod  string            `json:"request_method"`
+	RequestHeaders map[string]string `json:"request_headers"`
+	RequestBody    string            `json:"request_body"`
 	// 连接池配置
 	EnableConnectionPool bool `json:"enable_connection_pool"`
 	PoolSize             int  `json:"pool_size"`
@@ -265,13 +272,16 @@ func loadConfig(configPath string) (*Config, error) {
 		config.AppName = "com.enterprise.h5.ojscqn" // 默认值
 	}
 	if config.RequestHost == "" {
-		config.RequestHost = "10.10.27.97" // 默认值
+		config.RequestHost = "127.0.0.1" // 默认值
 	}
 	if config.RequestPort == "" {
-		config.RequestPort = "9090" // 默认值
+		config.RequestPort = "8089" // 默认值
 	}
 	if config.RequestPath == "" {
 		config.RequestPath = "/status" // 默认值
+	}
+	if config.RequestMethod == "" {
+		config.RequestMethod = "GET"
 	}
 	// 连接池配置默认值
 	if config.PoolSize <= 0 {
@@ -279,12 +289,10 @@ func loadConfig(configPath string) (*Config, error) {
 	}
 	config.TargetAddr = net.JoinHostPort(config.Host, config.Port)
 	config.RequestURL = fmt.Sprintf("https://%s:%s%s", config.RequestHost, config.RequestPort, config.RequestPath)
-	config.RequestBytes = []byte(fmt.Sprintf("GET %s HTTP/1.1\r\n"+
-		"Host: %s:%s\r\n"+
-		"User-Agent: curl/7.68.0\r\n"+
-		"Accept: */*\r\n"+
-		"Connection: close\r\n"+
-		"\r\n", config.RequestPath, config.RequestHost, config.RequestPort))
+	config.RequestBytes, err = buildRequestBytes(&config)
+	if err != nil {
+		return nil, err
+	}
 	config.AppNameBytes = []byte(config.AppName)
 
 	// 初始化TLS配置，只创建一次
@@ -312,6 +320,101 @@ func loadConfig(configPath string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func buildRequestBytes(config *Config) ([]byte, error) {
+	if config.UseRawRequest {
+		if config.RawRequest == "" {
+			return nil, fmt.Errorf("use_raw_request 为 true 时 raw_request 不能为空")
+		}
+		return []byte(config.RawRequest), nil
+	}
+
+	method := strings.ToUpper(strings.TrimSpace(config.RequestMethod))
+	if method == "" {
+		method = "GET"
+	}
+	path := strings.TrimSpace(config.RequestPath)
+	if path == "" {
+		path = "/"
+	}
+
+	headers := make(map[string]string, len(config.RequestHeaders)+4)
+	setHeader(headers, "Host", requestHostHeader(config.RequestHost, config.RequestPort))
+	setHeader(headers, "User-Agent", "curl/7.68.0")
+	setHeader(headers, "Accept", "*/*")
+	setHeader(headers, "Connection", "close")
+	for key, value := range config.RequestHeaders {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if strings.EqualFold(key, "Content-Length") {
+			continue
+		}
+		setHeader(headers, key, value)
+	}
+	if config.RequestBody != "" {
+		setHeader(headers, "Content-Length", fmt.Sprintf("%d", len([]byte(config.RequestBody))))
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(config.RequestBody) + 256 + len(headers)*32)
+	fmt.Fprintf(&builder, "%s %s HTTP/1.1\r\n", method, path)
+
+	preferredHeaders := []string{"Host", "User-Agent", "Accept", "Connection", "Content-Length"}
+	written := make(map[string]struct{}, len(headers))
+	for _, key := range preferredHeaders {
+		actualKey, ok := findHeaderKey(headers, key)
+		if !ok {
+			continue
+		}
+		fmt.Fprintf(&builder, "%s: %s\r\n", actualKey, headers[actualKey])
+		written[strings.ToLower(actualKey)] = struct{}{}
+	}
+
+	headerKeys := make([]string, 0, len(headers)-len(written))
+	for key := range headers {
+		if _, ok := written[strings.ToLower(key)]; ok {
+			continue
+		}
+		headerKeys = append(headerKeys, key)
+	}
+	sort.Slice(headerKeys, func(i, j int) bool {
+		return strings.ToLower(headerKeys[i]) < strings.ToLower(headerKeys[j])
+	})
+	for _, key := range headerKeys {
+		fmt.Fprintf(&builder, "%s: %s\r\n", key, headers[key])
+	}
+	builder.WriteString("\r\n")
+	builder.WriteString(config.RequestBody)
+
+	return []byte(builder.String()), nil
+}
+
+func requestHostHeader(host, port string) string {
+	host = strings.TrimSpace(host)
+	port = strings.TrimSpace(port)
+	if host == "" || port == "" {
+		return host
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func setHeader(headers map[string]string, key, value string) {
+	if existingKey, ok := findHeaderKey(headers, key); ok {
+		delete(headers, existingKey)
+	}
+	headers[key] = value
+}
+
+func findHeaderKey(headers map[string]string, key string) (string, bool) {
+	for existingKey := range headers {
+		if strings.EqualFold(existingKey, key) {
+			return existingKey, true
+		}
+	}
+	return "", false
 }
 
 func NewClientManager(clientCount int) (*ClientManager, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -73,5 +74,105 @@ func TestTcpInitHeaderMarshalIntoMatchesBinaryLayout(t *testing.T) {
 	}
 	if got := string(bytes.TrimRight(buf[60:160], "\x00")); got != "test" {
 		t.Fatalf("app name = %q, want test", got)
+	}
+}
+
+func TestBuildRequestBytesKeepsDefaultGETBehavior(t *testing.T) {
+	config := &Config{
+		RequestHost: "127.0.0.1",
+		RequestPort: "8090",
+		RequestPath: "/status?id=123",
+	}
+
+	request, err := buildRequestBytes(config)
+	if err != nil {
+		t.Fatalf("buildRequestBytes returned error: %v", err)
+	}
+
+	got := string(request)
+	want := "GET /status?id=123 HTTP/1.1\r\n" +
+		"Host: 127.0.0.1:8090\r\n" +
+		"User-Agent: curl/7.68.0\r\n" +
+		"Accept: */*\r\n" +
+		"Connection: close\r\n" +
+		"\r\n"
+	if got != want {
+		t.Fatalf("request = %q, want %q", got, want)
+	}
+}
+
+func TestBuildRequestBytesSupportsPostBodyAndHeaders(t *testing.T) {
+	config := &Config{
+		RequestHost:   "api.example.com",
+		RequestPort:   "443",
+		RequestMethod: "POST",
+		RequestPath:   "/api/test",
+		RequestHeaders: map[string]string{
+			"Content-Type":   "application/json",
+			"Authorization":  "Bearer token",
+			"Content-Length": "999",
+		},
+		RequestBody: `{"id":123}`,
+	}
+
+	request, err := buildRequestBytes(config)
+	if err != nil {
+		t.Fatalf("buildRequestBytes returned error: %v", err)
+	}
+
+	got := string(request)
+	for _, want := range []string{
+		"POST /api/test HTTP/1.1\r\n",
+		"Host: api.example.com:443\r\n",
+		"Content-Type: application/json\r\n",
+		"Authorization: Bearer token\r\n",
+		"Content-Length: 10\r\n",
+		"\r\n{\"id\":123}",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("request missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Content-Length: 999") {
+		t.Fatalf("request used configured Content-Length instead of computed length:\n%s", got)
+	}
+}
+
+func TestBuildRequestBytesAllowsHostHeaderOverride(t *testing.T) {
+	config := &Config{
+		RequestHost: "10.0.0.1",
+		RequestPort: "8080",
+		RequestPath: "/status",
+		RequestHeaders: map[string]string{
+			"Host": "custom.example.com",
+		},
+	}
+
+	request, err := buildRequestBytes(config)
+	if err != nil {
+		t.Fatalf("buildRequestBytes returned error: %v", err)
+	}
+
+	got := string(request)
+	if !strings.Contains(got, "Host: custom.example.com\r\n") {
+		t.Fatalf("request did not use custom Host:\n%s", got)
+	}
+	if strings.Contains(got, "Host: 10.0.0.1:8080") {
+		t.Fatalf("request included default Host despite custom Host:\n%s", got)
+	}
+}
+
+func TestBuildRequestBytesUsesRawRequestWhenEnabled(t *testing.T) {
+	config := &Config{
+		UseRawRequest: true,
+		RawRequest:    "PATCH /raw HTTP/1.1\r\nHost: raw.example.com\r\n\r\nbody",
+	}
+
+	request, err := buildRequestBytes(config)
+	if err != nil {
+		t.Fatalf("buildRequestBytes returned error: %v", err)
+	}
+	if got := string(request); got != config.RawRequest {
+		t.Fatalf("request = %q, want raw request %q", got, config.RawRequest)
 	}
 }
