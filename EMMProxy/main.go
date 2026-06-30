@@ -59,6 +59,11 @@ type Config struct {
 	RequestMethod  string            `json:"request_method"`
 	RequestHeaders map[string]string `json:"request_headers"`
 	RequestBody    string            `json:"request_body"`
+	// 响应断言配置
+	SuccessBodyContains   string `json:"success_body_contains"`
+	MaxAssertBodyBytes    int    `json:"max_assert_body_bytes"`
+	DebugResponse         bool   `json:"debug_response"`
+	DebugResponseMaxBytes int    `json:"debug_response_max_bytes"`
 	// 连接池配置
 	EnableConnectionPool bool `json:"enable_connection_pool"`
 	PoolSize             int  `json:"pool_size"`
@@ -69,6 +74,7 @@ type Config struct {
 	RequestBytes []byte      `json:"-"`
 	RequestURL   string      `json:"-"`
 	AppNameBytes []byte      `json:"-"`
+	ReadLimit    int         `json:"-"`
 }
 
 // ====================== 结构体定义 ======================
@@ -282,6 +288,23 @@ func loadConfig(configPath string) (*Config, error) {
 	}
 	if config.RequestMethod == "" {
 		config.RequestMethod = "GET"
+	}
+	config.SuccessBodyContains = strings.TrimSpace(config.SuccessBodyContains)
+	if config.SuccessBodyContains != "" && config.MaxAssertBodyBytes <= 0 {
+		config.MaxAssertBodyBytes = 4096
+	}
+	config.ReadLimit = 64
+	if config.SuccessBodyContains != "" {
+		config.ReadLimit = config.MaxAssertBodyBytes
+		if config.ReadLimit < 64 {
+			config.ReadLimit = 64
+		}
+	}
+	if config.DebugResponseMaxBytes <= 0 {
+		config.DebugResponseMaxBytes = 4096
+	}
+	if config.DebugResponse && config.ReadLimit < config.DebugResponseMaxBytes {
+		config.ReadLimit = config.DebugResponseMaxBytes
 	}
 	// 连接池配置默认值
 	if config.PoolSize <= 0 {
@@ -548,25 +571,74 @@ func (c *Client) sendTCPHello(conn net.Conn) bool {
 		return false
 	}
 
-	// 只读取少量数据（足够获取状态码）
-	if len(c.statusBuffer) == 0 {
-		c.statusBuffer = make([]byte, 64)
+	readLimit := c.config.ReadLimit
+	if readLimit <= 0 {
+		readLimit = 64
 	}
-	n, err := conn.Read(c.statusBuffer)
+	if len(c.statusBuffer) < readLimit {
+		c.statusBuffer = make([]byte, readLimit)
+	}
+	n, err := readHTTPResponse(conn, c.statusBuffer[:readLimit], c.config.SuccessBodyContains != "")
 	if err != nil && err != io.EOF {
 		log.Printf("客户端 %d Error reading response: %s", c.id, err)
 		return false
 	}
-	// 检查是否包含成功的HTTP状态码（2xx）
 	response := c.statusBuffer[:n]
-	if bytes.Contains(response, httpStatus200) ||
-		bytes.Contains(response, httpStatus201) ||
-		bytes.Contains(response, httpStatus204) ||
-		bytes.HasPrefix(response, httpStatus2xxPrefix) {
+	if c.config.DebugResponse {
+		log.Printf("🔎 客户端 %d 收到业务响应 (%d bytes):\n%s", c.id, n, debugResponsePreview(response, c.config.DebugResponseMaxBytes))
+	}
+	if evaluateHTTPResponse(c.config, response) {
 		return true
 	}
 	log.Printf("❌❌❌ 客户端 %d 业务请求失败，响应: %s", c.id, response)
 	return false
+}
+
+func readHTTPResponse(conn net.Conn, buffer []byte, readForAssertion bool) (int, error) {
+	n, err := conn.Read(buffer)
+	if err != nil || !readForAssertion {
+		return n, err
+	}
+
+	total := n
+	for total < len(buffer) {
+		if deadlineConn, ok := conn.(interface{ SetReadDeadline(time.Time) error }); ok {
+			_ = deadlineConn.SetReadDeadline(time.Now().Add(20 * time.Millisecond))
+		}
+		n, err = conn.Read(buffer[total:])
+		if n > 0 {
+			total += n
+		}
+		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) || strings.Contains(err.Error(), "timeout") {
+				return total, nil
+			}
+			return total, err
+		}
+	}
+	return total, nil
+}
+
+func evaluateHTTPResponse(config *Config, response []byte) bool {
+	statusOK := bytes.Contains(response, httpStatus200) ||
+		bytes.Contains(response, httpStatus201) ||
+		bytes.Contains(response, httpStatus204) ||
+		bytes.HasPrefix(response, httpStatus2xxPrefix)
+	if !statusOK {
+		return false
+	}
+
+	if config.SuccessBodyContains == "" {
+		return true
+	}
+	return bytes.Contains(response, []byte(config.SuccessBodyContains))
+}
+
+func debugResponsePreview(response []byte, maxBytes int) string {
+	if maxBytes <= 0 || maxBytes >= len(response) {
+		return string(response)
+	}
+	return fmt.Sprintf("%s...(truncated, total %d bytes)", string(response[:maxBytes]), len(response))
 }
 
 // 发送业务请求（带指标收集）
@@ -915,6 +987,6 @@ func main() {
 		totalTPS = float64(totalRequests) / totalTime.Seconds()
 	}
 	log.Printf("📊📊📊 成功TPS: %.2f", tps)
-	log.Printf("📊📊📊 总TPS: %.2f (成功+失败)", totalTPS)
+	log.Printf("📊📊📊 总TPS: %.2f", totalTPS)
 	log.Printf("📊📊📊 ==============================")
 }

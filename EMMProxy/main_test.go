@@ -176,3 +176,66 @@ func TestBuildRequestBytesUsesRawRequestWhenEnabled(t *testing.T) {
 		t.Fatalf("request = %q, want raw request %q", got, config.RawRequest)
 	}
 }
+
+func TestEvaluateHTTPResponseUsesStatusOnlyWithoutBodyAssertion(t *testing.T) {
+	config := &Config{}
+	response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 22\r\n\r\nbusiness error")
+
+	if !evaluateHTTPResponse(config, response) {
+		t.Fatal("evaluateHTTPResponse returned false for HTTP 200 without body assertion")
+	}
+}
+
+func TestEvaluateHTTPResponseRequiresConfiguredBodyAssertion(t *testing.T) {
+	config := &Config{
+		SuccessBodyContains: "\"status\":2000",
+	}
+	response := []byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":2000,\"msg\":\"post ok\"}")
+
+	if !evaluateHTTPResponse(config, response) {
+		t.Fatal("evaluateHTTPResponse returned false for matching body assertion")
+	}
+}
+
+func TestEvaluateHTTPResponseFailsWhenBodyAssertionMissing(t *testing.T) {
+	config := &Config{
+		SuccessBodyContains: "\"status\":2000",
+	}
+	response := []byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":5000,\"msg\":\"failed\"}")
+
+	if evaluateHTTPResponse(config, response) {
+		t.Fatal("evaluateHTTPResponse returned true for missing body assertion")
+	}
+}
+
+func TestEvaluateHTTPResponseSupportsTextBodyAssertion(t *testing.T) {
+	config := &Config{
+		SuccessBodyContains: "pong",
+	}
+	response := []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\npong")
+
+	if !evaluateHTTPResponse(config, response) {
+		t.Fatal("evaluateHTTPResponse returned false for text body assertion")
+	}
+}
+
+func TestDebugResponsePreviewTruncatesLargeResponse(t *testing.T) {
+	response := []byte("HTTP/1.1 200 OK\r\n\r\n0123456789")
+
+	got := debugResponsePreview(response, 20)
+	if !strings.Contains(got, "HTTP/1.1 200 OK\r\n\r") {
+		t.Fatalf("preview missing response prefix: %q", got)
+	}
+	if !strings.Contains(got, "...(truncated, total 29 bytes)") {
+		t.Fatalf("preview missing truncation marker: %q", got)
+	}
+}
+
+func TestDebugResponsePreviewUsesFullResponseWhenUnderLimit(t *testing.T) {
+	response := []byte("HTTP/1.1 200 OK\r\n\r\nok")
+
+	got := debugResponsePreview(response, 1024)
+	if got != string(response) {
+		t.Fatalf("preview = %q, want full response %q", got, string(response))
+	}
+}

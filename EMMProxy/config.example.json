@@ -16,5 +16,9 @@
     "User-Agent": "EMMProxy-TestClient/1.0"
   },
   "request_body": "",
+  "success_body_contains": "",
+  "max_assert_body_bytes": 4096,
+  "debug_response": false,
+  "debug_response_max_bytes": 4096,
   "disable_jtl": true
 }
