@@ -1,0 +1,12 @@
+{
+  "download_url": "https://example.test/download/file.bin",
+  "cookie": "JSESSIONID=replace-with-session-id",
+  "concurrency": 2,
+  "duration": 60,
+  "interval": 0,
+  "max_idle_conns": 200,
+  "request_timeout": 60,
+  "connect_timeout": 30,
+  "log_file": "download.log",
+  "log_level": "INFO"
+}

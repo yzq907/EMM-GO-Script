@@ -1,0 +1,12 @@
+ldap:
+  address: "ldap://127.0.0.1:389"
+  bind_dn: "cn=admin,dc=example,dc=local"
+  password: "replace-with-password"
+  base_dn: "DC=example,DC=local"
+  user_filter: "(uid=%s)"
+  user_dn_template: "CN=%s,OU=Users,DC=example,DC=local"
+
+stress_test:
+  concurrent_users: 50
+  duration_seconds: 60
+  user_data_file: "data.csv"

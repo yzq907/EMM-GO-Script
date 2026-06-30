@@ -1,0 +1,12 @@
+{
+  "host": "127.0.0.1",
+  "port": "8002",
+  "client_count": 1,
+  "run_duration_s": 60,
+  "server_id": 8400,
+  "app_name": "com.example.app",
+  "request_host": "127.0.0.1",
+  "request_port": "8090",
+  "request_path": "/status",
+  "disable_jtl": true
+}

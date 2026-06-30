@@ -1,0 +1,7 @@
+{
+  "host": "127.0.0.1",
+  "port": "40233",
+  "client_count": 1,
+  "run_duration_s": 60,
+  "auth_password": "replace-with-auth-password"
+}

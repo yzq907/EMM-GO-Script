@@ -1,0 +1,6 @@
+{
+  "host": "127.0.0.1",
+  "port": "8002",
+  "client_count": 20,
+  "run_duration_s": 60
+}

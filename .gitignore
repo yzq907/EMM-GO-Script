@@ -1,0 +1,42 @@
+# Runtime configuration with credentials or environment-specific addresses
+config.json
+config.yaml
+config.yaml-*
+
+# Test credentials and generated data
+*.csv
+*.dat
+*.dat-*
+token_client.csv
+session_id.csv
+users.dat
+userinfo.csv
+!*.example.csv
+!*.example.dat
+
+# Logs and downloaded artifacts
+*.log
+downloads/
+test_results.jtl
+
+# Built binaries
+Emm-test
+EMMProxy-download-file
+TLS-test
+quic-test
+redis-tool-arm64
+cpu_load_controlle-arm64
+emm-download
+emm-download-arm64
+xcad-test
+
+# Local backup/source snapshots
+*.bak
+*.bak-*
+*-bak
+*-bak*
+main.go-*
+
+# Go build/test output
+*.test
+coverage.out

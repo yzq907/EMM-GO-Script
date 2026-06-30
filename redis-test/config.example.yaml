@@ -1,0 +1,12 @@
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 15
+  mode: "standalone"
+
+app:
+  target_bytes: 2147483648
+  estimated_per_key: 2000
+  key_prefix: "test:fill:"
+  batch_size: 100
+  concurrent: 4

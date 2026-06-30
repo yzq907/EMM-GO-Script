@@ -1,0 +1,13 @@
+{
+  "host": "127.0.0.1",
+  "port": "8002",
+  "client_count": 1,
+  "run_count": 100,
+  "timeout_s": 60,
+  "server_id": 8400,
+  "app_name": "com.example.app",
+  "http_request": "GET /download/file.bin HTTP/1.1\r\nHost: 127.0.0.1:8090\r\nConnection: close\r\n\r\n",
+  "test_mode": "memory",
+  "save_path": "./downloads",
+  "log_file_path": "./download_test.log"
+}

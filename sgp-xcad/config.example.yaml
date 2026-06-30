@@ -1,0 +1,16 @@
+realm: "EXAMPLE.LOCAL"
+kdc: "example.local"
+admin_server: "kadmin.example.local"
+kpasswd_server: "kpasswd.example.local"
+kdc_ip: "127.0.0.1"
+timeout: 60s
+
+username: "user001"
+password: "replace-with-password"
+
+total_requests: 1000
+concurrency: 100
+user_file: "users.dat"
+
+max_retries: 1
+udp_preference_limit: 1
