@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/csv"
@@ -10,7 +11,9 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +28,7 @@ import (
 const (
 	TCPConnectTimeout   = 5 * time.Second
 	TCPOperationTimeout = 3 * time.Second
+	DownloadBufferSize  = 64 * 1024
 )
 
 // min 辅助函数，返回两个整数中的较小值
@@ -391,8 +395,7 @@ func (c *Client) runTCPClient(host, port string) bool {
 		log.Printf("❌❌❌ 客户端 %d: 接收数据不足: %d 字节 (需要至少20字节)", c.id, n)
 		return false
 	}
-	c.sendTCPHello(tlsConn)
-	return true
+	return c.sendTCPHello(tlsConn)
 }
 
 // 发送业务请求，下载文件
@@ -417,130 +420,46 @@ func (c *Client) sendTCPHello(conn net.Conn) bool {
 	// 设置读取超时，适应大文件下载
 	conn.SetReadDeadline(time.Now().Add(c.config.Timeout))
 
-	// 读取响应头
-	buffer := make([]byte, 4096)
-	n, err := conn.Read(buffer)
-	if err != nil && err != io.EOF {
-		errMsg := fmt.Sprintf("客户端 %d 读取响应头失败: %v", c.id, err)
+	reader := bufio.NewReaderSize(conn, DownloadBufferSize)
+	resp, err := http.ReadResponse(reader, nil)
+	if err != nil {
+		errMsg := fmt.Sprintf("客户端 %d 读取HTTP响应失败: %v", c.id, err)
 		log.Print(errMsg)
 		c.manager.writeLog(fmt.Sprintf("❌ %s", errMsg))
 		return false
 	}
+	defer resp.Body.Close()
 
-	// 检查是否包含"200"或"206"状态码
-	statusCode := ""
-	if bytes.Contains(buffer[:n], []byte(" 200 ")) {
-		statusCode = "200"
-	} else if bytes.Contains(buffer[:n], []byte(" 206 ")) {
-		statusCode = "206"
-	} else {
-		errMsg := fmt.Sprintf("客户端 %d 下载请求失败，状态码不是200或206", c.id)
-		log.Printf("❌❌❌ %s", errMsg)
-		c.manager.writeLog(fmt.Sprintf("❌ %s", errMsg))
-		c.manager.writeLog(fmt.Sprintf("客户端 %d 响应内容: %s", c.id, string(buffer[:min(n, 200)])))
-		return false
-	}
-
-	c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 响应状态码: %s", c.id, statusCode))
-
-	logLen := min(n, 500)
-	c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 响应头内容: %s", c.id, string(buffer[:logLen])))
-
-	// 找到响应头结束位置（\r\n\r\n）
-	headerEnd := bytes.Index(buffer[:n], []byte("\r\n\r\n"))
-	if headerEnd == -1 {
-		errMsg := fmt.Sprintf("客户端 %d 无法解析响应头", c.id)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		errMsg := fmt.Sprintf("客户端 %d 下载请求失败，状态码不是200或206: %d", c.id, resp.StatusCode)
 		log.Printf("❌❌❌ %s", errMsg)
 		c.manager.writeLog(fmt.Sprintf("❌ %s", errMsg))
 		return false
 	}
 
-	// 解析 Content-Length 和 Content-Range
-	expectedLength := -1
-	contentLengthPrefix := "Content-Length: "
-	contentRangePrefix := "Content-Range: "
+	c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 响应状态码: %d", c.id, resp.StatusCode))
 
-	if idx := bytes.Index(buffer[:headerEnd], []byte(contentLengthPrefix)); idx != -1 {
-		start := idx + len(contentLengthPrefix)
-		end := bytes.Index(buffer[start:headerEnd], []byte("\r\n"))
-		if end != -1 {
-			lengthStr := string(buffer[start : start+end])
-			fmt.Sscanf(lengthStr, "%d", &expectedLength)
-			c.manager.writeLogOnly(fmt.Sprintf("客户端 %d Content-Length: %d 字节", c.id, expectedLength))
-		}
+	expectedLength := expectedLengthFromResponse(resp)
+	if expectedLength >= 0 {
+		c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 期望下载大小: %d 字节", c.id, expectedLength))
 	}
-
-	// 对于206响应，解析Content-Range获取总文件大小
-	if statusCode == "206" {
-		c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 检测到206响应，开始解析Content-Range", c.id))
-		if idx := bytes.Index(buffer[:headerEnd], []byte(contentRangePrefix)); idx != -1 {
-			//c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 找到Content-Range头，位置: %d", c.id, idx))
-			start := idx + len(contentRangePrefix)
-			// 在Content-Range头之后查找\r\n，而不是在整个headerEnd范围内
-			endPos := bytes.Index(buffer[start:], []byte("\r\n"))
-			if endPos != -1 {
-				// 调整endPos为相对于buffer的绝对位置
-				end := start + endPos
-				//c.manager.writeLogOnly(fmt.Sprintf("客户端 %d Content-Range头范围: start=%d, end=%d", c.id, start, end))
-				rangeStr := string(buffer[start:end])
-				c.manager.writeLogOnly(fmt.Sprintf("客户端 %d Content-Range原始值: %s", c.id, rangeStr))
-
-				// 更健壮的解析逻辑
-				rangeStr = strings.TrimSpace(rangeStr)
-
-				// 移除可能的"bytes "前缀
-				if strings.HasPrefix(rangeStr, "bytes ") {
-					rangeStr = strings.TrimPrefix(rangeStr, "bytes ")
-				}
-
-				// 分割格式: "0-1023/20971520"
-				parts := strings.Split(rangeStr, "/")
-				if len(parts) >= 2 {
-					rangePart := strings.TrimSpace(parts[0])
-					rangeParts := strings.Split(rangePart, "-")
-
-					if len(rangeParts) == 2 {
-						startByte, err1 := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
-						endByte, err2 := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
-						totalSize, err3 := strconv.Atoi(strings.TrimSpace(parts[1]))
-
-						if err1 == nil && err2 == nil && err3 == nil {
-							c.manager.writeLogOnly(fmt.Sprintf("客户端 %d Content-Range: bytes %d-%d/%d (分片下载)", c.id, startByte, endByte, totalSize))
-							// 对于分片下载，expectedLength应该是本次返回的大小
-							expectedLength = endByte - startByte + 1
-						} else {
-							c.manager.writeLogOnly(fmt.Sprintf("⚠️ 客户端 %d Content-Range解析失败: startByte=%v, endByte=%v, totalSize=%v", c.id, err1, err2, err3))
-							// 如果解析失败，使用Content-Length
-						}
-					} else {
-						c.manager.writeLogOnly(fmt.Sprintf("⚠️ 客户端 %d Content-Range格式错误: rangeParts=%v", c.id, rangeParts))
-					}
-				} else {
-					c.manager.writeLogOnly(fmt.Sprintf("⚠️ 客户端 %d Content-Range格式错误: parts=%v", c.id, parts))
-				}
-			}
-		} else {
-			c.manager.writeLogOnly(fmt.Sprintf("⚠️ 客户端 %d 未找到Content-Range头", c.id))
-		}
-	}
-
-	// 提取响应头后的第一个数据块
-	bodyStart := headerEnd + 4
-	fileData := buffer[bodyStart:n]
-
-	var totalBytes int
 
 	// 根据配置模式选择下载方式
+	var totalBytes int64
 	if c.config.TestMode == "disk" {
-		// 写入磁盘模式
-		totalBytes = c.downloadToDisk(conn, fileData, expectedLength)
+		totalBytes, err = c.downloadResponseToDisk(resp.Body)
 	} else {
-		// 写入内存模式（默认）
-		totalBytes = c.downloadToMemory(conn, fileData, expectedLength)
+		totalBytes, err = c.downloadResponseToMemory(resp.Body)
+	}
+	if err != nil {
+		errMsg := fmt.Sprintf("客户端 %d 文件下载失败: %v，已下载 %d 字节", c.id, err, totalBytes)
+		log.Printf("❌❌❌ %s", errMsg)
+		c.manager.writeLog(fmt.Sprintf("❌ %s", errMsg))
+		return false
 	}
 
 	if totalBytes > 0 {
-		if expectedLength > 0 {
+		if expectedLength >= 0 {
 			if totalBytes == expectedLength {
 				successMsg := fmt.Sprintf("客户端 %d 文件下载成功，总大小: %d 字节 (匹配期望值)", c.id, totalBytes)
 				log.Printf("✅✅ %s", successMsg)
@@ -551,6 +470,7 @@ func (c *Client) sendTCPHello(conn net.Conn) bool {
 				log.Printf("⚠️⚠️ %s", warnMsg)
 				c.manager.writeLog(fmt.Sprintf("⚠️ %s", warnMsg))
 				c.manager.writeLog(fmt.Sprintf("⚠️ 客户端 %d 下载不完整，可能原因: 服务器提前关闭连接或网络传输中断", c.id))
+				return false
 			}
 		} else {
 			successMsg := fmt.Sprintf("客户端 %d 文件下载成功，总大小: %d 字节", c.id, totalBytes)
@@ -564,6 +484,69 @@ func (c *Client) sendTCPHello(conn net.Conn) bool {
 		c.manager.writeLog(fmt.Sprintf("❌ %s", errMsg))
 	}
 	return false
+}
+
+func expectedLengthFromResponse(resp *http.Response) int64 {
+	if resp.ContentLength >= 0 {
+		return resp.ContentLength
+	}
+	if resp.StatusCode != http.StatusPartialContent {
+		return -1
+	}
+
+	rangeValue := strings.TrimSpace(resp.Header.Get("Content-Range"))
+	if rangeValue == "" {
+		return -1
+	}
+	if strings.HasPrefix(strings.ToLower(rangeValue), "bytes ") {
+		rangeValue = strings.TrimSpace(rangeValue[len("bytes "):])
+	}
+
+	parts := strings.SplitN(rangeValue, "/", 2)
+	if len(parts) != 2 {
+		return -1
+	}
+	bounds := strings.SplitN(strings.TrimSpace(parts[0]), "-", 2)
+	if len(bounds) != 2 {
+		return -1
+	}
+
+	startByte, err1 := strconv.ParseInt(strings.TrimSpace(bounds[0]), 10, 64)
+	endByte, err2 := strconv.ParseInt(strings.TrimSpace(bounds[1]), 10, 64)
+	if err1 != nil || err2 != nil || endByte < startByte {
+		return -1
+	}
+	return endByte - startByte + 1
+}
+
+func (c *Client) downloadResponseToMemory(body io.Reader) (int64, error) {
+	buffer := make([]byte, DownloadBufferSize)
+	totalBytes, err := io.CopyBuffer(io.Discard, body, buffer)
+	c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 下载到内存结束，总大小: %d 字节", c.id, totalBytes))
+	return totalBytes, err
+}
+
+func (c *Client) downloadResponseToDisk(body io.Reader) (int64, error) {
+	if err := os.MkdirAll(c.config.SavePath, 0755); err != nil {
+		return 0, fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	fileName := fmt.Sprintf("download_client_%d_%d.bin", c.id, time.Now().UnixNano())
+	filePath := filepath.Join(c.config.SavePath, fileName)
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("创建文件失败: %w", err)
+	}
+	defer file.Close()
+
+	buffer := make([]byte, DownloadBufferSize)
+	totalBytes, err := io.CopyBuffer(file, body, buffer)
+	if err != nil {
+		return totalBytes, err
+	}
+	c.manager.writeLogOnly(fmt.Sprintf("客户端 %d 文件已保存到: %s", c.id, filePath))
+	return totalBytes, nil
 }
 
 // 检查连接状态
