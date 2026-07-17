@@ -243,6 +243,22 @@ func loadSessionIDs(filePath string) ([]string, error) {
 	return sessionIDs, nil
 }
 
+func parseTLSVersion(value string) (string, uint16, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = "1.2"
+	}
+
+	switch value {
+	case "1.2":
+		return value, tls.VersionTLS12, nil
+	case "1.3":
+		return value, tls.VersionTLS13, nil
+	default:
+		return "", 0, fmt.Errorf("tls_version 仅支持 1.2 或 1.3，当前值: %q", value)
+	}
+}
+
 func loadConfig(configPath string) (*Config, error) {
 	file, err := os.Open(configPath)
 	if err != nil {

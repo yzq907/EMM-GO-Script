@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -237,5 +238,38 @@ func TestDebugResponsePreviewUsesFullResponseWhenUnderLimit(t *testing.T) {
 	got := debugResponsePreview(response, 1024)
 	if got != string(response) {
 		t.Fatalf("preview = %q, want full response %q", got, string(response))
+	}
+}
+
+func TestParseTLSVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantName    string
+		wantVersion uint16
+		wantErr     bool
+	}{
+		{name: "default", input: "", wantName: "1.2", wantVersion: tls.VersionTLS12},
+		{name: "tls12", input: "1.2", wantName: "1.2", wantVersion: tls.VersionTLS12},
+		{name: "tls13", input: "1.3", wantName: "1.3", wantVersion: tls.VersionTLS13},
+		{name: "invalid", input: "auto", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotName, gotVersion, err := parseTLSVersion(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("parseTLSVersion returned nil error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseTLSVersion returned error: %v", err)
+			}
+			if gotName != tt.wantName || gotVersion != tt.wantVersion {
+				t.Fatalf("parseTLSVersion(%q) = (%q, %#x), want (%q, %#x)", tt.input, gotName, gotVersion, tt.wantName, tt.wantVersion)
+			}
+		})
 	}
 }
