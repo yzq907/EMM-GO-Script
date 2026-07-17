@@ -2,11 +2,36 @@ ldap:
   address: "ldap://127.0.0.1:389"
   bind_dn: "cn=admin,dc=example,dc=local"
   password: "replace-with-password"
+  admin_bind_dn: "cn=admin,dc=example,dc=local"
+  admin_password: "replace-with-admin-password"
   base_dn: "DC=example,DC=local"
   user_filter: "(uid=%s)"
   user_dn_template: "CN=%s,OU=Users,DC=example,DC=local"
+  search_base_template: "CN=%s,OU=Users,DC=example,DC=local"
+  search_filter_template: "(&(objectClass=person)(cn=%s))"
+  search_attributes:
+    - cn
+    - distinguishedName
+    - objectClass
+  search_scope: 0
+  search_count_limit: 1
+  modify_attribute: "description"
+  modify_operation: "replace"
+  modify_value_template: "go-write-%s-%d"
+  verify_modify: true
+  connection_timeout_seconds: 10
+  operation_timeout_seconds: 60
 
 stress_test:
   concurrent_users: 50
   duration_seconds: 60
   user_data_file: "data.csv"
+  # bind | search | modify | bind_search | bind_search_modify | mixed
+  scenario: "bind"
+  read_concurrent_users: 50
+  write_concurrent_users: 1
+  # ratio: every write_interval_requests reads schedules one write
+  # rate: write_rate_per_second is a global write rate, not multiplied by write_concurrent_users
+  write_schedule: "ratio"
+  write_interval_requests: 1000
+  write_rate_per_second: 5
