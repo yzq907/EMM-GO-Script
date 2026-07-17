@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/binary"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -297,5 +300,78 @@ func TestLoadConfigForcesConfiguredTLSVersion(t *testing.T) {
 	}
 	if config.TLSConfig.MinVersion != tls.VersionTLS13 || config.TLSConfig.MaxVersion != tls.VersionTLS13 {
 		t.Fatalf("TLS version range = %#x-%#x, want TLS 1.3 only", config.TLSConfig.MinVersion, config.TLSConfig.MaxVersion)
+	}
+}
+
+func TestConfiguredTLSVersionNegotiatesExpectedProtocol(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured string
+		want       uint16
+	}{
+		{name: "tls12", configured: "1.2", want: tls.VersionTLS12},
+		{name: "tls13", configured: "1.3", want: tls.VersionTLS13},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+			server.TLS = &tls.Config{MinVersion: tt.want, MaxVersion: tt.want}
+			server.StartTLS()
+			defer server.Close()
+
+			path := filepath.Join(t.TempDir(), "config.json")
+			content := []byte(fmt.Sprintf(`{
+				"host":"127.0.0.1",
+				"port":"8002",
+				"tls_version":%q
+			}`, tt.configured))
+			if err := os.WriteFile(path, content, 0644); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+
+			config, err := loadConfig(path)
+			if err != nil {
+				t.Fatalf("loadConfig returned error: %v", err)
+			}
+			conn, err := tls.Dial("tcp", server.Listener.Addr().String(), config.TLSConfig)
+			if err != nil {
+				t.Fatalf("TLS handshake failed: %v", err)
+			}
+			defer conn.Close()
+
+			if got := conn.ConnectionState().Version; got != tt.want {
+				t.Fatalf("negotiated TLS version = %#x, want %#x", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfiguredTLSVersionDoesNotFallback(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, MaxVersion: tls.VersionTLS12}
+	server.StartTLS()
+	defer server.Close()
+
+	path := filepath.Join(t.TempDir(), "config.json")
+	content := []byte(`{
+		"host":"127.0.0.1",
+		"port":"8002",
+		"tls_version":"1.3"
+	}`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	config, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("loadConfig returned error: %v", err)
+	}
+	conn, err := tls.Dial("tcp", server.Listener.Addr().String(), config.TLSConfig)
+	if conn != nil {
+		conn.Close()
+	}
+	if err == nil {
+		t.Fatal("TLS handshake succeeded despite incompatible forced versions")
 	}
 }
