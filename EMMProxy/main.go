@@ -69,6 +69,7 @@ type Config struct {
 	PoolSize             int  `json:"pool_size"`
 	DisableJTL           bool `json:"disable_jtl"`
 	// TLS配置
+	TLSVersion   string      `json:"tls_version"`
 	TLSConfig    *tls.Config `json:"-"` // 不序列化到JSON
 	TargetAddr   string      `json:"-"`
 	RequestBytes []byte      `json:"-"`
@@ -333,6 +334,11 @@ func loadConfig(configPath string) (*Config, error) {
 		return nil, err
 	}
 	config.AppNameBytes = []byte(config.AppName)
+	tlsVersionName, tlsVersion, err := parseTLSVersion(config.TLSVersion)
+	if err != nil {
+		return nil, err
+	}
+	config.TLSVersion = tlsVersionName
 
 	// 初始化TLS配置，只创建一次
 	certPool := x509.NewCertPool()
@@ -352,8 +358,8 @@ func loadConfig(configPath string) (*Config, error) {
 		// 启用TLS会话复用，减少握手开销
 		ClientSessionCache: tls.NewLRUClientSessionCache(1024),
 		// 性能优化配置
-		MinVersion:               tls.VersionTLS12,     // 使用TLS 1.2
-		MaxVersion:               tls.VersionTLS12,     // 只使用TLS 1.2
+		MinVersion:               tlsVersion,
+		MaxVersion:               tlsVersion,
 		PreferServerCipherSuites: false,                // 客户端选择加密套件
 		Renegotiation:            tls.RenegotiateNever, // 禁止重协商
 	}
@@ -889,6 +895,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("❌❌❌ 加载配置文件失败: %v", err)
 	}
+	log.Printf("强制使用 TLS %s", config.TLSVersion)
 
 	// 使用配置值替换硬编码值
 	clientCount := config.ClientCount

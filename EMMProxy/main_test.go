@@ -273,3 +273,29 @@ func TestParseTLSVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadConfigForcesConfiguredTLSVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	content := []byte(`{
+		"host":"127.0.0.1",
+		"port":"8002",
+		"request_host":"127.0.0.1",
+		"request_port":"8090",
+		"request_path":"/status",
+		"tls_version":"1.3"
+	}`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	config, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("loadConfig returned error: %v", err)
+	}
+	if config.TLSVersion != "1.3" {
+		t.Fatalf("TLSVersion = %q, want 1.3", config.TLSVersion)
+	}
+	if config.TLSConfig.MinVersion != tls.VersionTLS13 || config.TLSConfig.MaxVersion != tls.VersionTLS13 {
+		t.Fatalf("TLS version range = %#x-%#x, want TLS 1.3 only", config.TLSConfig.MinVersion, config.TLSConfig.MaxVersion)
+	}
+}
