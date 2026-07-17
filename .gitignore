@@ -40,6 +40,3 @@ main.go-*
 # Go build/test output
 *.test
 coverage.out
-
-# Isolated development worktrees
-.worktrees/
