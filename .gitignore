@@ -21,6 +21,7 @@ test_results.jtl
 
 # Built binaries
 Emm-test
+SPA-Test-Server
 EMMProxy-download-file
 TLS-test
 quic-test
