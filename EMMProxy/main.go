@@ -343,7 +343,7 @@ func loadConfig(configPath string) (*Config, error) {
 	// 初始化TLS配置，只创建一次
 	certPool := x509.NewCertPool()
 	config.TLSConfig = &tls.Config{
-		ServerName:         "10.10.27.216",
+		ServerName:         config.Host,
 		RootCAs:            certPool,
 		InsecureSkipVerify: true,
 		CipherSuites: []uint16{

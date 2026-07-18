@@ -298,6 +298,9 @@ func TestLoadConfigForcesConfiguredTLSVersion(t *testing.T) {
 	if config.TLSVersion != "1.3" {
 		t.Fatalf("TLSVersion = %q, want 1.3", config.TLSVersion)
 	}
+	if config.TLSConfig.ServerName != "127.0.0.1" {
+		t.Fatalf("TLS ServerName = %q, want 127.0.0.1", config.TLSConfig.ServerName)
+	}
 	if config.TLSConfig.MinVersion != tls.VersionTLS13 || config.TLSConfig.MaxVersion != tls.VersionTLS13 {
 		t.Fatalf("TLS version range = %#x-%#x, want TLS 1.3 only", config.TLSConfig.MinVersion, config.TLSConfig.MaxVersion)
 	}
