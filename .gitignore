@@ -30,6 +30,7 @@ cpu_load_controlle-arm64
 emm-download
 emm-download-arm64
 xcad-test
+arms-load-generator/arms-load-generator
 
 # Local backup/source snapshots
 *.bak
