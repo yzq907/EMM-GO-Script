@@ -1,6 +1,6 @@
 # EMM GO Script
 
-Go-based test tools for EMM gateway, download, LDAP, Redis, QUIC, TLS, CPU load, and KDC authentication scenarios.
+Go-based test tools for EMM gateway, download, LDAP, Redis, QUIC, TLS, CPU load, KDC authentication, and SGP-PAM load testing scenarios.
 
 ## Tools
 
@@ -16,6 +16,7 @@ Go-based test tools for EMM gateway, download, LDAP, Redis, QUIC, TLS, CPU load,
 | `redis-test` | Redis test data write/check/clean tool |
 | `cpu_load_controlle` | Local CPU load generator |
 | `sgp-xcad` | Kerberos KDC authentication stress test |
+| `pam-loadtest` | SGP-PAM asset inventory generation, distributed SSH/RDP/VNC/Web/MySQL capacity and stability load testing |
 
 Each tool directory contains its own `README.md` with configuration and usage details.
 
@@ -30,3 +31,12 @@ Each directory is an independent Go module. Run tests from each tool directory:
 ```bash
 go test ./...
 ```
+
+For `pam-loadtest` specifically:
+
+```bash
+cd pam-loadtest
+go test ./...
+```
+
+`pam-loadtest/AGENTS.md` records the verified SGP-PAM test history, known issues, release-package rules, and follow-up guidance for future agents.
