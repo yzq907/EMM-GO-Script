@@ -1,0 +1,14 @@
+name: vnc-direct
+total: 200
+ramp: 10m
+hold: 40m
+seed: 20260805
+protocols: {vnc: 200}
+execution_modes:
+  vnc: {browser: 0, direct: 200}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  vnc: {asset_id_env: VNC_ASSET_ID, account_id_env: VNC_ACCOUNT_ID}

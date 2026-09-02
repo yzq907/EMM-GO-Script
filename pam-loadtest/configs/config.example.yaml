@@ -1,0 +1,18 @@
+name: smoke
+total: 5
+ramp: 1m
+hold: 5m
+# 对 SSH 建连前的 PAM connect timeout 最多额外重试三次；默认 0。
+connect_retries: 3
+seed: 1
+protocols: {ssh: 1, rdp: 1, vnc: 1, web: 1, mysql: 1}
+pam:
+  base_url: http://pam.example.test:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  ssh: {asset_id_env: SSH_ASSET_ID, account_id_env: SSH_ACCOUNT_ID}
+  rdp: {asset_id_env: RDP_ASSET_ID, account_id_env: RDP_ACCOUNT_ID, url_template_env: RDP_BROWSER_URL_TEMPLATE}
+  vnc: {asset_id_env: VNC_ASSET_ID, account_id_env: VNC_ACCOUNT_ID, url_template_env: VNC_BROWSER_URL_TEMPLATE}
+  web: {asset_id_env: WEB_ASSET_ID, account_id_env: WEB_ACCOUNT_ID, url_template_env: WEB_BROWSER_URL_TEMPLATE}
+  mysql: {asset_id_env: MYSQL_ASSET_ID, account_id_env: MYSQL_ACCOUNT_ID}

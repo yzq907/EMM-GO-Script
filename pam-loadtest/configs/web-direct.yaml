@@ -1,0 +1,14 @@
+name: web-direct
+total: 250
+ramp: 10m
+hold: 40m
+seed: 20260805
+protocols: {web: 250}
+execution_modes:
+  web: {browser: 0, direct: 250}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  web: {asset_id_env: WEB_ASSET_ID, account_id_env: WEB_ACCOUNT_ID}

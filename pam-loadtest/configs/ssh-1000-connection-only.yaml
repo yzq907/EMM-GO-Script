@@ -1,0 +1,17 @@
+name: ssh-1000-connection-only
+total: 1000
+ramp: 10m
+hold: 10m
+connection_only: true
+continue_on_errors: true
+connect_retries: 3
+seed: 20260806
+protocols: {ssh: 1000}
+execution_modes:
+  ssh: {browser: 0, direct: 1000}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  ssh: {asset_id_env: SSH_ASSET_ID, account_id_env: SSH_ACCOUNT_ID}

@@ -1,0 +1,20 @@
+name: graphics-1000
+total: 1000
+ramp: 10m
+hold: 30m
+seed: 20260803
+protocols: {rdp: 500, vnc: 150, web: 250, mysql: 100}
+execution_modes:
+  rdp: {browser: 18, direct: 482}
+  vnc: {browser: 5, direct: 145}
+  web: {browser: 9, direct: 241}
+  mysql: {browser: 0, direct: 100}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  rdp: {asset_id_env: RDP_ASSET_ID, account_id_env: RDP_ACCOUNT_ID, url_template_env: RDP_BROWSER_URL_TEMPLATE}
+  vnc: {asset_id_env: VNC_ASSET_ID, account_id_env: VNC_ACCOUNT_ID, url_template_env: VNC_BROWSER_URL_TEMPLATE}
+  web: {asset_id_env: WEB_ASSET_ID, account_id_env: WEB_ACCOUNT_ID, url_template_env: WEB_BROWSER_URL_TEMPLATE}
+  mysql: {asset_id_env: MYSQL_ASSET_ID, account_id_env: MYSQL_ACCOUNT_ID}

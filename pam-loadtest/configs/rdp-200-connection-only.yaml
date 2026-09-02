@@ -1,0 +1,17 @@
+name: rdp-200-connection-only
+total: 200
+ramp: 10m
+hold: 10m
+connection_only: true
+continue_on_errors: true
+connect_retries: 3
+seed: 20260806
+protocols: {rdp: 200}
+execution_modes:
+  rdp: {browser: 0, direct: 200}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  rdp: {asset_id_env: RDP_ASSET_ID, account_id_env: RDP_ACCOUNT_ID}

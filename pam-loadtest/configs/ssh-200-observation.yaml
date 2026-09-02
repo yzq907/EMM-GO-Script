@@ -1,0 +1,13 @@
+name: ssh-200-observation
+total: 200
+ramp: 5m
+hold: 12m
+ssh_activity_interval: 5s
+continue_on_errors: true
+# 对建连前的 PAM session connect timeout 采用 2s、5s、10s 三次补偿重试。
+connect_retries: 3
+seed: 20260805
+protocols: {ssh: 200}
+pam: {base_url: http://10.19.88.148:8088, username_env: PAM_USERNAME, password_env: PAM_PASSWORD}
+assets:
+  ssh: {asset_id_env: SSH_ASSET_ID, account_id_env: SSH_ACCOUNT_ID}

@@ -1,0 +1,14 @@
+name: mysql-browser
+total: 1
+ramp: 1s
+hold: 30s
+seed: 20260805
+protocols: {mysql: 1}
+execution_modes:
+  mysql: {browser: 1, direct: 0}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  mysql: {asset_id_env: MYSQL_ASSET_ID, account_id_env: MYSQL_ACCOUNT_ID, url_template_env: MYSQL_BROWSER_URL_TEMPLATE}

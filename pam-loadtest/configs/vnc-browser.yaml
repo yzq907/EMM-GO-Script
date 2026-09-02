@@ -1,0 +1,14 @@
+name: vnc-browser
+total: 32
+ramp: 5m
+hold: 40m
+seed: 20260805
+protocols: {vnc: 32}
+execution_modes:
+  vnc: {browser: 32, direct: 0}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  vnc: {asset_id_env: VNC_ASSET_ID, account_id_env: VNC_ACCOUNT_ID, url_template_env: VNC_BROWSER_URL_TEMPLATE}

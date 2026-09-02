@@ -1,0 +1,12 @@
+# Local build artifacts
+bin/
+*.test
+coverage.out
+
+# Node dependencies
+browser-worker/node_modules/
+
+# Runtime outputs and local credentials
+runtime/
+.env
+*.log

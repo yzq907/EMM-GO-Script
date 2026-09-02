@@ -1,0 +1,18 @@
+name: graphics-12-small
+total: 12
+ramp: 120s
+hold: 10m
+continue_on_errors: true
+seed: 20260805
+protocols: {rdp: 6, vnc: 2, web: 3, mysql: 1}
+execution_modes:
+  rdp: {browser: 6, direct: 0}
+  vnc: {browser: 2, direct: 0}
+  web: {browser: 3, direct: 0}
+  mysql: {browser: 0, direct: 1}
+pam: {base_url: http://10.19.88.148:8088, username_env: PAM_USERNAME, password_env: PAM_PASSWORD}
+assets:
+  rdp: {asset_id_env: RDP_ASSET_ID, account_id_env: RDP_ACCOUNT_ID, url_template_env: RDP_BROWSER_URL_TEMPLATE}
+  vnc: {asset_id_env: VNC_ASSET_ID, account_id_env: VNC_ACCOUNT_ID, url_template_env: VNC_BROWSER_URL_TEMPLATE}
+  web: {asset_id_env: WEB_ASSET_ID, account_id_env: WEB_ACCOUNT_ID, url_template_env: WEB_BROWSER_URL_TEMPLATE}
+  mysql: {asset_id_env: MYSQL_ASSET_ID, account_id_env: MYSQL_ACCOUNT_ID}

@@ -1,0 +1,14 @@
+name: ssh-1000-no-early-stop
+total: 1000
+ramp: 10m
+hold: 10m
+ssh_activity_interval: 5s
+continue_on_errors: true
+seed: 20260805
+protocols: {ssh: 1000}
+pam: &pam
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  ssh: {asset_id_env: SSH_ASSET_ID, account_id_env: SSH_ACCOUNT_ID}

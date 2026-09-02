@@ -1,0 +1,14 @@
+name: web-browser
+total: 32
+ramp: 5m
+hold: 40m
+seed: 20260805
+protocols: {web: 32}
+execution_modes:
+  web: {browser: 32, direct: 0}
+pam:
+  base_url: http://10.19.88.148:8088
+  username_env: PAM_USERNAME
+  password_env: PAM_PASSWORD
+assets:
+  web: {asset_id_env: WEB_ASSET_ID, account_id_env: WEB_ACCOUNT_ID, url_template_env: WEB_BROWSER_URL_TEMPLATE}

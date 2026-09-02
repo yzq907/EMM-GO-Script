@@ -1,0 +1,7 @@
+{
+  "name": "pam-browser-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test worker.test.mjs"},
+  "dependencies": {"playwright-core": "1.43.1"}
+}
