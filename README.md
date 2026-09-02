@@ -1,6 +1,6 @@
 # EMM GO Script
 
-Go-based test tools for EMM gateway, download, LDAP, Redis, QUIC, TLS, CPU load, KDC authentication, and SGP-PAM load testing scenarios.
+Go-based test tools for EMM gateway, download, LDAP, Redis, QUIC/TLS proxy testing, TLS, CPU load, KDC authentication, and SGP-PAM load testing scenarios.
 
 ## Tools
 
@@ -10,6 +10,7 @@ Go-based test tools for EMM gateway, download, LDAP, Redis, QUIC, TLS, CPU load,
 | `EMMProxy-2` | GM TLS tunnel file download test |
 | `TLS-Test` | Custom TLS extension tunnel stress test |
 | `quic-client` | QUIC SPA authentication and token generation test |
+| `SPA-test-server` | HTTP service for JMeter-driven QUIC SPA authentication and custom TLS gateway proxy stress testing |
 | `emm-download` | One-shot concurrent download test |
 | `emm-download-2` | Duration-based continuous download stress test |
 | `ldap` | LDAP Bind authentication stress test |
